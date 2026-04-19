@@ -1,0 +1,337 @@
+{
+  "name": "Snowpipe Failure Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "USE WAREHOUSE monitor_wh;\nUSE DATABASE snowpipe_monitor_demo;\nUSE SCHEMA raw;\n\nSELECT \n  file_name,\n  status,\n  error_count,\n  first_error_message,\n  last_load_time,\n  COALESCE(pipe_name, 'MANUAL_LOAD') as pipe_name \nFROM TABLE(INFORMATION_SCHEMA.COPY_HISTORY(\n  TABLE_NAME => 'staging_call_logs',\n  START_TIME => DATEADD(days, -1, CURRENT_TIMESTAMP())\n)) \nWHERE status = 'LOAD_FAILED'\nORDER BY last_load_time DESC"
+      },
+      "id": "b6f0b3f3-d321-4cc8-bd22-7a25aaf2c9fb",
+      "name": "Query Failed Loads",
+      "type": "n8n-nodes-base.snowflake",
+      "typeVersion": 1,
+      "position": [
+        -672,
+        224
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "snowflake": {
+          "id": "YOUR_SNOWFLAKE_CREDENTIAL_ID",
+          "name": "Snowflake account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "check-failures",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0e02afd0-9040-4728-ae04-55f35d743cf0",
+      "name": "IF - Failures Exist?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "USE WAREHOUSE monitor_wh;\nUSE DATABASE snowpipe_monitor_demo;\nUSE SCHEMA raw;\n\nSELECT \n  UPPER(pipe_name) as PIPE_NAME,\n  UPPER(file_name) as FILE_NAME,\n  COALESCE(MAX(retry_count), 0) as RETRY_COUNT,\n  MAX(failure_time) as LAST_RETRY_TIME\nFROM snowpipe_failure_logs\nWHERE failure_time > DATEADD(days, -1, CURRENT_TIMESTAMP())\nGROUP BY UPPER(pipe_name), UPPER(file_name)"
+      },
+      "id": "e06a30fb-4301-4ae9-8ee5-c6fd15bf0727",
+      "name": "Get Retry Count",
+      "type": "n8n-nodes-base.snowflake",
+      "typeVersion": 1,
+      "position": [
+        -224,
+        224
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "snowflake": {
+          "id": "YOUR_SNOWFLAKE_CREDENTIAL_ID",
+          "name": "Snowflake account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get failures from Query Failed Loads\nconst failures = $('Query Failed Loads').all();\n\n// Get retry counts\nlet retryCounts = [];\ntry {\n  retryCounts = $('Get Retry Count').all();\n} catch (error) {\n  retryCounts = [];\n}\n\n// Create retry map - normalize to UPPERCASE for matching\nconst retryMap = {};\nretryCounts.forEach(row => {\n  if (row && row.json) {\n    const pipeName = (row.json.PIPE_NAME || row.json.pipe_name || 'MANUAL_LOAD').toUpperCase();\n    const fileName = (row.json.FILE_NAME || row.json.file_name || '').toUpperCase();\n    const retryCount = row.json.RETRY_COUNT || row.json.retry_count || 0;\n    \n    if (fileName) {\n      const key = `${pipeName}_${fileName}`;\n      retryMap[key] = retryCount;\n    }\n  }\n});\n\n// Process each failure\nconst results = failures.map(failure => {\n  const pipeName = (failure.json.PIPE_NAME || failure.json.pipe_name || 'MANUAL_LOAD').toUpperCase();\n  const fileName = (failure.json.FILE_NAME || failure.json.file_name || '').toUpperCase();\n  const errorMessage = failure.json.FIRST_ERROR_MESSAGE || failure.json.first_error_message || 'Unknown error';\n  \n  const key = `${pipeName}_${fileName}`;\n  const retryCount = retryMap[key] || 0;\n  \n  return {\n    json: {\n      pipe_name: pipeName,\n      file_name: fileName,\n      error_message: errorMessage.substring(0, 200),\n      retry_count: retryCount,\n      should_retry: retryCount < 3,\n      is_final_failure: retryCount >= 3\n    }\n  };\n});\n\nreturn results;"
+      },
+      "id": "28898181-cf0b-4e5c-94af-e28aabc3995e",
+      "name": "Process Failures",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "should-retry-check",
+              "leftValue": "={{ $json.should_retry }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "57aab1e8-cca8-481d-8172-e09fb2ac7400",
+      "name": "IF - Should Retry?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        224,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "USE WAREHOUSE monitor_wh;\nUSE DATABASE snowpipe_monitor_demo;\nUSE SCHEMA raw;\n\nALTER PIPE call_logs_pipe REFRESH;"
+      },
+      "id": "09617ccc-30b8-452c-ae7c-99adb5c00768",
+      "name": "Refresh Pipe",
+      "type": "n8n-nodes-base.snowflake",
+      "typeVersion": 1,
+      "position": [
+        448,
+        128
+      ],
+      "credentials": {
+        "snowflake": {
+          "id": "YOUR_SNOWFLAKE_CREDENTIAL_ID",
+          "name": "Snowflake account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "USE WAREHOUSE monitor_wh;\nUSE DATABASE snowpipe_monitor_demo;\nUSE SCHEMA raw;\n\nINSERT INTO snowpipe_failure_logs \n(pipe_name, file_name, retry_count, error_message)\nVALUES \n(\n  '{{ $(\"Process Failures\").item.json.pipe_name }}',\n  '{{ $(\"Process Failures\").item.json.file_name }}',\n  {{ $(\"Process Failures\").item.json.retry_count + 1 }},\n  '{{ $(\"Process Failures\").item.json.error_message.replace(/'/g, \"''\") }}'\n)"
+      },
+      "id": "d8c2e024-224e-4370-8cd6-ca51ad7e7f33",
+      "name": "Log Retry Attempt",
+      "type": "n8n-nodes-base.snowflake",
+      "typeVersion": 1,
+      "position": [
+        672,
+        128
+      ],
+      "credentials": {
+        "snowflake": {
+          "id": "YOUR_SNOWFLAKE_CREDENTIAL_ID",
+          "name": "Snowflake account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "YOUR_SLACK_WEBHOOK_URL",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"*Snowpipe Auto-Retry #{{ Number($('Process Failures').item.json.retry_count) + 1 }}*\\n\\n*Pipe:* {{ $('Process Failures').item.json.pipe_name }}\\n*File:* {{ $('Process Failures').item.json.file_name }}\\n*Error:* {{ $('Process Failures').item.json.error_message }}\\n\\nAttempting automatic recovery...\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        896,
+        128
+      ],
+      "id": "e8d9e965-de5a-4bf6-aea5-2ee77ddf8073",
+      "name": "Slack Notification [Retries]"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "YOUR_SLACK_WEBHOOK_URL",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"*SNOWPIPE FAILURE - Manual Intervention Required*\\n\\n*Pipe:* {{ $('Process Failures').item.json.pipe_name }}\\n*File:* {{ $('Process Failures').item.json.file_name }}\\n*Retry Attempts:* 3/3 EXHAUSTED\\n\\n*Error:* {{ $('Process Failures').item.json.error_message }}\\n\\n*Action Required:* Investigate and resolve manually.\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        448,
+        320
+      ],
+      "id": "acdc01b8-e849-4877-abd6-48f00417dcd9",
+      "name": "Slack Notification [Manual Intervention]"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -880,
+        224
+      ],
+      "id": "8f078b16-bd2c-4c21-b407-0fab3182e42d",
+      "name": "Every 10 Minutes [Trigger]"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Query Failed Loads": {
+      "main": [
+        [
+          {
+            "node": "IF - Failures Exist?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Failures Exist?": {
+      "main": [
+        [
+          {
+            "node": "Get Retry Count",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Retry Count": {
+      "main": [
+        [
+          {
+            "node": "Process Failures",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Failures": {
+      "main": [
+        [
+          {
+            "node": "IF - Should Retry?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Should Retry?": {
+      "main": [
+        [
+          {
+            "node": "Refresh Pipe",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack Notification [Manual Intervention]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Refresh Pipe": {
+      "main": [
+        [
+          {
+            "node": "Log Retry Attempt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Retry Attempt": {
+      "main": [
+        [
+          {
+            "node": "Slack Notification [Retries]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Notification [Manual Intervention]": {
+      "main": [
+        []
+      ]
+    },
+    "Every 10 Minutes [Trigger]": {
+      "main": [
+        [
+          {
+            "node": "Query Failed Loads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "WORKFLOW_VERSION_ID",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "YOUR_N8N_INSTANCE_ID"
+  },
+  "id": "WORKFLOW_ID",
+  "tags": []
+}
