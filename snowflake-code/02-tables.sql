@@ -66,5 +66,3 @@ SHOW FILE FORMATS IN SCHEMA snowpipe_monitor_demo.raw;
 -- Describe table structures
 DESC TABLE staging_call_logs;
 DESC TABLE snowpipe_failure_logs;
-
-SELECT 'Table setup completed successfully' AS status;
