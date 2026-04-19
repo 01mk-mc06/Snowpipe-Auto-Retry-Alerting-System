@@ -195,7 +195,7 @@ SELECT * FROM snowpipe_failure_logs
 ORDER BY failure_time DESC;
 ```
 
-## 📝 How It Works
+##  How It Works
 
 ### Workflow Logic
 
