@@ -1,10 +1,7 @@
 -- =====================================================
 -- Snowpipe Auto-Retry System - Snowpipe Setup
 -- =====================================================
--- Description: Creates Snowpipe with auto-ingest
--- Author: King Czlonkowski
--- Date: 2026-04-20
--- =====================================================
+
 
 USE WAREHOUSE monitor_wh;
 USE DATABASE snowpipe_monitor_demo;
