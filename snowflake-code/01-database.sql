@@ -52,4 +52,3 @@ USE WAREHOUSE monitor_wh;
 USE DATABASE snowpipe_monitor_demo;
 USE SCHEMA raw;
 
-SELECT 'Database setup completed successfully' AS status;
