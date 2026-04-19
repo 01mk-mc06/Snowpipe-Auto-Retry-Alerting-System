@@ -161,7 +161,7 @@ your-bucket-name/
 └── failed/        # Failed files for investigation
 ```
 
-**Create SNS topic and configure S3 event notifications** (see [AWS Setup Guide](./docs/aws-setup.md))
+**Create SNS topic and configure S3 event notifications**
 
 ### 5. Deploy n8n Workflow
 
@@ -276,27 +276,24 @@ ALTER PIPE call_logs_pipe REFRESH;
 ##  Screenshots
 
 ### Successful Auto-Retry Notification
-![Auto-Retry Slack Alert](./docs/screenshots/slack-retry.png)
 
 *Slack notification showing automatic retry attempt #1 with error details*
 
 ### Critical Alert (Manual Intervention Required)
-![Critical Failure Alert](./docs/screenshots/slack-critical.png)
 
 *Critical alert after 3 failed retry attempts*
 
 ### n8n Workflow Canvas
-![n8n Workflow](./docs/screenshots/n8n-workflow.png)
 
 *Complete workflow showing failure detection, retry logic, and alerting nodes*
 
 ##  Documentation
 
-- [Cost Analysis](./docs/cost-analysis.md) - Detailed cost breakdown and comparisons
-- [AWS Setup Guide](./docs/aws-setup.md) - S3, SNS, IAM configuration
-- [Snowflake Setup Guide](./docs/snowflake-setup.md) - Database, tables, pipe creation
-- [n8n Workflow Guide](./docs/n8n-setup.md) - Workflow import and configuration
-- [Troubleshooting](./docs/troubleshooting.md) - Common issues and solutions
+- Cost Analysis - Detailed cost breakdown and comparisons
+- AWS Setup Guide - S3, SNS, IAM configuration
+- Snowflake Setup Guide - Database, tables, pipe creation
+- n8n Workflow Guide - Workflow import and configuration
+- Troubleshooting - Common issues and solutions
 
 ##  Configuration
 
@@ -367,9 +364,6 @@ Contributions welcome! Please:
 4. Push to branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-##  License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
@@ -393,6 +387,3 @@ Analytics Engineer | Data Engineering Portfolio
 
 **Target roles:** Analytics Engineer, Data Engineer (Philippines + Remote)
 
----
-
- **If you found this project helpful, please consider giving it a star!**
