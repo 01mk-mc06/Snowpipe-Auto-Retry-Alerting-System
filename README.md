@@ -371,19 +371,5 @@ Contributions welcome! Please:
 - n8n community for workflow automation patterns
 - Railway for affordable n8n hosting
 
-## Author
 
-**King**  
-Analytics Engineer | Data Engineering Portfolio
-
-
----
-
-**Built as part of Analytics Engineering portfolio demonstrating:**
-- Production operations thinking (monitoring, alerting, failure handling)
-- Cost optimization (87% savings vs native alternatives)
-- Multi-tool integration (Snowflake + AWS + n8n + Slack)
-- Real-world data engineering challenges in BPO/enterprise environments
-
-**Target roles:** Analytics Engineer, Data Engineer (Philippines + Remote)
 
